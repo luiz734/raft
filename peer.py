@@ -73,8 +73,8 @@ class Peer:
                 print("Cant reach " + uri)
 
     def _reply_to_vote_request(self, candidate):
+        print("voted for: ", self.voted_for)
         if self.voted_for == "":
-            print("i'hve voted")
             self.term += 1
             self.voted_for = candidate
             self.reset_election_timeout()
@@ -93,6 +93,8 @@ class Peer:
 
         self._ask_others_for_vote()
         has_majority_of_votes = self.vote_count > int(TOTAL_PEERS / 2)
+        if self.term > 1:
+            print(has_majority_of_votes)
         if has_majority_of_votes:
             self._become_leader()
         else:
@@ -110,7 +112,6 @@ class Peer:
 
     # The leader begins sending out Append Entries messages to its followers
     def _on_heartbeat_timeout(self) -> None:
-        print("heartbeat timeout")
         for uri in self.all_uris:
             try:
                 proxy = Pyro5.api.Proxy(uri=uri)
@@ -124,11 +125,9 @@ class Peer:
         self.heartbeat_timer.start()
 
     def reply_to_heartbeat(self):
-        print("received heartbet")
-        if self.state == State.CANDIDATE:
-            self.state = State.FOLLOWER
-            self.voted_for = ""
-            self.vote_count = 0
+        self.state = State.FOLLOWER
+        self.voted_for = ""
+        self.vote_count = 0
         self.election_timer.reset(self._get_random_election_timer_ms())
         self.election_timer.start()
         return MessageType.OK
