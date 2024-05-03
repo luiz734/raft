@@ -28,11 +28,16 @@ class Peer:
         self.heartbeat_timeout_sec = 1
         self.debug_logs = ["started"]
 
+
         rand_election_timer = random.random()
 
         self.election_timer = Timer(2000, self.on_election_timeout)
         self.election_timer.start()
 
+    Pyro5.api.oneway
+    def foo(self):
+        print("I got something")
+        return "bar from " + self.peername
     
 
     # election stuff
@@ -109,39 +114,25 @@ class Peer:
 
 peer = Peer(cli_peername, cli_port)
 printer = Printer(peer)
-
 printer.start()
 
-try:
-    while True:
-        # time.sleep(1)
-        # peer.election_timer.reset()
-        pass
-        # p.debug_log("hello again")
-except KeyboardInterrupt:
-    pass
-# import time
-# from rich.live import Live
-# from rich.table import Table
-#
-# s = "hello"
-#
-# def foo():
-#     global s
-#     time.sleep(1)
-#     s = "bar"
-#
-# t = threading.Thread(target=foo, daemon=False)
-# t.start()
-#
-# def update() -> Table:
-#     table = Table()
-#     table.add_column("Row ID")
-#     table.add_row(s)
-#     return table
-#
-# with Live(update(), refresh_per_second=4) as live:  # update 4 times a second to feel fluid
+daemon = Pyro5.api.Daemon(port=int(cli_port))
+uri = daemon.register(peer, objectId=cli_peername, weak=True)
+print(uri)
+
+t1 = threading.Thread(target=daemon.requestLoop)
+t1.start()
+
+uri_string = "PYRO:peer2@localhost:9002"
+# try:
+proxy = Pyro5.api.Proxy(uri=uri_string)
+print(proxy.foo())
+# except:
+
+
+
+# try:
 #     while True:
-#         live.update(update())
-#
-#
+#         pass
+# except KeyboardInterrupt:
+#     pass

@@ -1,0 +1,16 @@
+# /home/tohru/.config/tmuxinator/qbit.yml
+
+name: peers
+root: /home/tohru/UTFPR/sistemas_distribuidos/raft
+# startup_window: lazygit
+
+windows:
+  - peers:
+      layout: 8651,188x43,0,0{94x43,0,0[94x21,0,0,0,94x21,0,22,4],93x43,95,0[93x21,95,0,2,93x21,95,22,3]}
+      panes:
+        - clear && python3 peer.py peer1 9091
+        - clear && python3 peer.py peer2 9092
+        - #
+        - #
+        # - clear && python3 greeting-server.py peer3 9093
+        # - clear && python3 greeting-server.py peer4 9094
