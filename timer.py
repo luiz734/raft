@@ -20,6 +20,7 @@ class Timer:
     def reset(self, new_timeout_ms=None):
         if new_timeout_ms:
             self.timeout_ms = new_timeout_ms
+            self.timeout_sec = new_timeout_ms/1000
         self.start_t = time.time()
         if self.timer_thread:
             self.timer_thread.cancel()

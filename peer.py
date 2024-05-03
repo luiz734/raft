@@ -101,6 +101,8 @@ class Peer:
     def _become_leader(self) -> None:
         self.state = State.LEADER
         self.election_timer.stop()
+        self.voted_for = ""
+        self.vote_count = 0
 
         self.heartbeat_timer.reset()
         self.heartbeat_timer.start()
@@ -127,7 +129,7 @@ class Peer:
             self.state = State.FOLLOWER
             self.voted_for = ""
             self.vote_count = 0
-        self.election_timer.reset()
+        self.election_timer.reset(self._get_random_election_timer_ms())
         self.election_timer.start()
         return MessageType.OK
 
