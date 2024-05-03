@@ -35,8 +35,9 @@ class Printer:
         t.add_row("state", self._get_state_formated())
         t.add_row("term", str(p.term))
         t.add_row("vote_count", str(p.vote_count))
-        t.add_row("voted_for", self._get_voted_for())
+        t.add_row("voted_for", self.peer.voted_for)
         t.add_row("election", str(p.election_timer.remaining_sec()))
+        t.add_row("heartbeat", str(p.heartbeat_timer.remaining_sec()))
 
         t.add_row("[red]uncommitted[/]", p.uncommitted_data)
         t.add_row("[green]committed[/]", p.data)

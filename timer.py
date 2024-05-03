@@ -17,7 +17,9 @@ class Timer:
         if self.timer_thread:
             self.timer_thread.start()
 
-    def reset(self):
+    def reset(self, new_timeout_ms=None):
+        if new_timeout_ms:
+            self.timeout_ms = new_timeout_ms
         self.start_t = time.time()
         if self.timer_thread:
             self.timer_thread.cancel()
@@ -32,6 +34,8 @@ class Timer:
 
     def stop(self):
         self.running = False
+        if self.timer_thread:
+            self.timer_thread.cancel()
 
     def remaining_sec(self) -> float:
         # return (self.timeout_ms - self.elapsed_time_ms) / 1000
