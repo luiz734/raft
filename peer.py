@@ -21,7 +21,7 @@ class Peer:
         self.port = port
         self.uri = "PYRO:{peername}@localhost:{port}".format(peername=peername, port=port)
         self.state = State.FOLLOWER
-        self.term = 0
+        self.term = 1
         self.uncommitted_data = ""
         self.data = ""
         self.vote_count = 0
@@ -52,29 +52,38 @@ class Peer:
     def _get_random_election_timer_ms(self):
         return (random.random() * 8.0 + 3.0) * 1000
     
-    def on_message_arrived(self, sender, msg):
-        assert sender and msg, "Missing required parameters"
+    def on_message_arrived(self, msg_type, metadata):
+        assert metadata != None and msg_type, "Missing required parameters"
 
-        if msg == MessageType.ASK_VOTE.value:
-            return self._reply_to_vote_request(sender)
-        elif msg == MessageType.HEARTBEAT.value:
-            return self.reply_to_heartbeat()
+        if msg_type == MessageType.ASK_VOTE.value:
+            return self._reply_to_vote_request(metadata)
+        elif msg_type == MessageType.HEARTBEAT.value:
+            return self.reply_to_heartbeat(metadata)
 
     # election stuff
     def _ask_others_for_vote(self) -> None:
         for uri in self.all_uris:
             try:
                 proxy = Pyro5.api.Proxy(uri=uri)
-                msg = MessageType.ASK_VOTE
+                msg_type = MessageType.ASK_VOTE
+                metadata = {
+                        "sender": self.peername,
+                        "term": self.term
+                        }
                 print("asking to " + uri)
-                if proxy.on_message_arrived(self.peername, msg):
+                if proxy.on_message_arrived(msg_type, metadata):
                     self.vote_count += 1
-            except:
+            except Exception as e:
                 print("Cant reach " + uri)
+                print(e)
 
-    def _reply_to_vote_request(self, candidate):
+    def _reply_to_vote_request(self, metadata):
+        candidate = metadata["sender"]
+        other_term = int(metadata["term"])
+        assert candidate and other_term, "Missing required parameters"
         print("voted for: ", self.voted_for)
-        if self.voted_for == "":
+        # > or >=??
+        if self.voted_for == "" and other_term > int(self.term):
             self.term += 1
             self.voted_for = candidate
             self.reset_election_timeout()
@@ -115,21 +124,25 @@ class Peer:
         for uri in self.all_uris:
             try:
                 proxy = Pyro5.api.Proxy(uri=uri)
-                msg = MessageType.HEARTBEAT
-                res = proxy.on_message_arrived(self.peername, msg)
+                msg_type = MessageType.HEARTBEAT
+                res = proxy.on_message_arrived(msg_type, {"term": self.term})
                 if res != MessageType.OK.value:
                     print("follower return bad stuff")
-            except:
+            except Exception as e:
                 print("Cant send hearbeat to " + uri)
+                print(e)
         self.heartbeat_timer.reset()
         self.heartbeat_timer.start()
 
-    def reply_to_heartbeat(self):
+    def reply_to_heartbeat(self, metadata):
+        other_term = metadata["term"]
+        assert other_term, "Missing other term on reply_to_heartbeat"
         self.state = State.FOLLOWER
         self.voted_for = ""
         self.vote_count = 0
         self.election_timer.reset(self._get_random_election_timer_ms())
         self.election_timer.start()
+        self.term = other_term
         return MessageType.OK
 
     # helpers
