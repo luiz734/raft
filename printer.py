@@ -6,6 +6,7 @@ from rich.table import Table
 import time
 from states import State
 
+
 class Printer:
     def __init__(self, peer, interval_sec=1) -> None:
         self.peer = peer
@@ -18,7 +19,9 @@ class Printer:
         t.start()
 
     def loop_print(self) -> None:
-        with Live(self.print(), refresh_per_second=60, transient=False) as live:  # update 4 times a second to feel fluid
+        with Live(
+            self.print(), refresh_per_second=60, transient=False
+        ) as live:  # update 4 times a second to feel fluid
             while True:
                 live.update(self.print())
 
@@ -26,7 +29,14 @@ class Printer:
         # self.console.clear()
         # self.console = Console()
         p = self.peer
-        t = Table(show_header=False, title="Peer State", expand=True, show_lines=False, show_edge=True, box=None)
+        t = Table(
+            show_header=False,
+            title="Peer State",
+            expand=True,
+            show_lines=False,
+            show_edge=True,
+            box=None,
+        )
         t.add_column(min_width=10, max_width=10, ratio=2, style="dim")
         t.add_column(ratio=6)
 
@@ -52,18 +62,17 @@ class Printer:
             self.console.log(p.debug_logs[index])
             index += 1
 
-
     def _get_voted_for(self):
         if self.peer.voted_for:
             return self.peer.voted_for.peername
         else:
             return "None"
+
     def _get_state_formated(self):
         match self.peer.state:
             case State.FOLLOWER:
-                return "" + str(self.peer.state) #+ "[/]"
+                return "" + str(self.peer.state)  # + "[/]"
             case State.CANDIDATE:
                 return "[yellow]" + str(self.peer.state) + "[/]"
             case State.LEADER:
                 return "[green]" + str(self.peer.state) + "[/]"
-

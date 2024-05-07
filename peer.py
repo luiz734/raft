@@ -14,12 +14,15 @@ TOTAL_PEERS = 4
 cli_peername = sys.argv[1]
 cli_port = sys.argv[2]
 
+
 @Pyro5.api.expose
 class Peer:
     def __init__(self, peername, port) -> None:
         self.peername = peername
         self.port = port
-        self.uri = "PYRO:{peername}@localhost:{port}".format(peername=peername, port=port)
+        self.uri = "PYRO:{peername}@localhost:{port}".format(
+            peername=peername, port=port
+        )
         self.state = State.FOLLOWER
         self.term = 1
         self.uncommitted_data = ""
@@ -32,26 +35,26 @@ class Peer:
             "PYRO:peer1@localhost:9001",
             "PYRO:peer2@localhost:9002",
             "PYRO:peer3@localhost:9003",
-            "PYRO:peer4@localhost:9004"
+            "PYRO:peer4@localhost:9004",
         ]
         self.all_uris = list(filter(lambda x: x != self.uri, uris))
         print(self.all_uris)
 
-
-        self.election_timer = Timer(self._get_random_election_timer_ms(),
-                                    self.on_election_timeout)
+        self.election_timer = Timer(
+            self._get_random_election_timer_ms(), self.on_election_timeout
+        )
         self.election_timer.start()
 
-        self.heartbeat_timer = Timer(self.heartbeat_timeout_ms,
-                                    self._on_heartbeat_timeout)
-
+        self.heartbeat_timer = Timer(
+            self.heartbeat_timeout_ms, self._on_heartbeat_timeout
+        )
 
     # def get_peername(self):
     #     return self.peername
-    
+
     def _get_random_election_timer_ms(self):
         return (random.random() * 8.0 + 3.0) * 1000
-    
+
     def on_message_arrived(self, msg_type, metadata):
         assert metadata != None and msg_type, "Missing required parameters"
 
@@ -66,10 +69,7 @@ class Peer:
             try:
                 proxy = Pyro5.api.Proxy(uri=uri)
                 msg_type = MessageType.ASK_VOTE
-                metadata = {
-                        "sender": self.peername,
-                        "term": self.term
-                        }
+                metadata = {"sender": self.peername, "term": self.term}
                 print("asking to " + uri)
                 if proxy.on_message_arrived(msg_type, metadata):
                     self.vote_count += 1
@@ -91,7 +91,8 @@ class Peer:
         return False
 
     def reset_election_timeout(self):
-        pass
+        self.election_timer.reset(self._get_random_election_timer_ms())
+        self.election_timer.start()
 
     #  150ms and 300ms
     def on_election_timeout(self) -> None:
@@ -101,13 +102,12 @@ class Peer:
         self.state = State.CANDIDATE
 
         self._ask_others_for_vote()
+        # maybe check half+1 instead of half
         has_majority_of_votes = self.vote_count > int(TOTAL_PEERS / 2)
-        if self.term > 1:
-            print(has_majority_of_votes)
         if has_majority_of_votes:
             self._become_leader()
         else:
-            self.election_timer.reset(self._get_random_election_timer_ms())
+            self.reset_election_timeout()
 
     def _become_leader(self) -> None:
         self.state = State.LEADER
@@ -117,7 +117,6 @@ class Peer:
 
         self.heartbeat_timer.reset()
         self.heartbeat_timer.start()
-
 
     # The leader begins sending out Append Entries messages to its followers
     def _on_heartbeat_timeout(self) -> None:
@@ -140,8 +139,7 @@ class Peer:
         self.state = State.FOLLOWER
         self.voted_for = ""
         self.vote_count = 0
-        self.election_timer.reset(self._get_random_election_timer_ms())
-        self.election_timer.start()
+        self.reset_election_timeout()
         self.term = other_term
         return MessageType.OK
 
@@ -179,6 +177,7 @@ class Peer:
         if self.state == State.LEADER:
             return
         self.data = self.uncommitted_data
+
 
 peer = Peer(cli_peername, cli_port)
 printer = Printer(peer)
