@@ -49,6 +49,9 @@ class Peer:
             self.heartbeat_timeout_ms, self._on_heartbeat_timeout
         )
 
+        # set to true when receiver enough heartbear responses aftera client request
+        self.just_got_client_request = False
+
     # def get_peername(self):
     #     return self.peername
 
@@ -110,6 +113,9 @@ class Peer:
             self.reset_election_timeout()
 
     def _become_leader(self) -> None:
+        nameserver = Pyro5.api.locate_ns()
+        nameserver.register("leader", uri)
+
         self.state = State.LEADER
         self.election_timer.stop()
         self.voted_for = ""
@@ -120,63 +126,62 @@ class Peer:
 
     # The leader begins sending out Append Entries messages to its followers
     def _on_heartbeat_timeout(self) -> None:
+        total_acknowledge = 0
         for uri in self.all_uris:
             try:
                 proxy = Pyro5.api.Proxy(uri=uri)
                 msg_type = MessageType.HEARTBEAT
-                res = proxy.on_message_arrived(msg_type, {"term": self.term})
-                if res != MessageType.OK.value:
-                    print("follower return bad stuff")
+                print(self.uncommitted_data)
+                res = proxy.on_message_arrived(
+                    msg_type,
+                    {
+                        "term": self.term,
+                        "unc_state": self.uncommitted_data,
+                        "state": self.data,
+                    },
+                )
+                if res == MessageType.OK.value:
+                    total_acknowledge += 1
             except Exception as e:
                 print("Cant send hearbeat to " + uri)
                 print(e)
+        # > or >=?
+        enough_heartbeat_ack = total_acknowledge > int(TOTAL_PEERS / 2)
+        if self.just_got_client_request and enough_heartbeat_ack:
+            self.just_got_client_request = False
+            self.commit_state()
+
         self.heartbeat_timer.reset()
         self.heartbeat_timer.start()
 
     def reply_to_heartbeat(self, metadata):
         other_term = metadata["term"]
-        assert other_term, "Missing other term on reply_to_heartbeat"
+        other_unc_state = metadata["unc_state"]
+        other_state = metadata["state"]
+        assert other_term != None, "Missing other_term on reply_to_heartbeat"
+        assert other_unc_state != None, "Missing other_unc_state on reply_to_heartbeat"
+        assert other_state != None, "Missing other_state on reply_to_heartbeat"
         self.state = State.FOLLOWER
+        self.uncommitted_data = other_unc_state
+        self.data = other_state
         self.voted_for = ""
         self.vote_count = 0
         self.reset_election_timeout()
         self.term = other_term
         return MessageType.OK
 
+    def commit_state(self):
+        self.data = self.uncommitted_data
+
     # helpers
     def debug_log(self, msg):
         self.debug_logs.insert(0, msg)
 
     # client stuff
-    def handle_client_request(self, data) -> None:
-        if self.state != State.LEADER:
-            return
-        pass
-        self.uncommitted_data = data
-
-    # remaining stuff
-    def replicate_uncommitted_data(self) -> None:
-        if self.state != State.LEADER:
-            return
-        # await majority to commit
-
-        majority_confirmed = True
-        if majority_confirmed:
-            self.data = self.uncommitted_data
-
-    def reply_uncommitted_data(self) -> None:
-        if self.state == State.LEADER:
-            return
-
-    def replicate_committed_data(self) -> None:
-        if self.state != State.LEADER:
-            return
-        pass
-
-    def reply_committed_data(self) -> None:
-        if self.state == State.LEADER:
-            return
-        self.data = self.uncommitted_data
+    def update_state(self, new_state):
+        self.just_got_client_request = True
+        self.uncommitted_data = new_state
+        return True
 
 
 peer = Peer(cli_peername, cli_port)
@@ -185,7 +190,6 @@ printer.start()
 
 daemon = Pyro5.api.Daemon(port=int(cli_port))
 uri = daemon.register(peer, objectId=cli_peername, weak=True)
-print(uri)
 
 t1 = threading.Thread(target=daemon.requestLoop)
 t1.start()
