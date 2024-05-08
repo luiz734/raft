@@ -1,9 +1,8 @@
 import threading
-import random
 from rich.console import Console
 from rich.live import Live
 from rich.table import Table
-import time
+from states import LogType
 from states import State
 
 
@@ -12,7 +11,7 @@ class Printer:
         self.peer = peer
         self.paused = False
         self.interval_sec = interval_sec
-        self.max_entries = 5
+        self.max_entries = 8
 
     def start(self):
         t = threading.Thread(target=self.loop_print, daemon=True)
@@ -52,21 +51,36 @@ class Printer:
         t.add_row("[red]uncommitted[/]", p.uncommitted_data)
         t.add_row("[green]committed[/]", p.data)
 
-        return t
-        self.console.print(t)
-        self.console.rule()
+        # self.console.print(t)
+        # self.console.rule()
         start = 0
         end = min(len(p.debug_logs), self.max_entries)
         index = start
         while index < end:
-            self.console.log(p.debug_logs[index])
+            log_type = p.debug_logs[index]["log_type"]
+            msg = p.debug_logs[index]["msg"]
+            t.add_row("", self._format_log(log_type, msg))
             index += 1
+
+        return t
 
     def _get_voted_for(self):
         if self.peer.voted_for:
             return self.peer.voted_for.peername
         else:
             return "None"
+
+    def _format_log(self, log_type, msg):
+        match log_type:
+            case LogType.DEFAULT:
+                return str(msg)
+            case LogType.SUCCESS:
+                return "[green]" + str(msg) + "[/]"
+            case LogType.WARNING:
+                return "[yellow]" + str(msg) + "[/]"
+            case LogType.ERROR:
+                return "[red]" + str(msg) + "[/]"
+    
 
     def _get_state_formated(self):
         match self.peer.state:
